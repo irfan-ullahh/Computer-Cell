@@ -1,5 +1,5 @@
 // ===== Paste your Google Apps Script web-app URL here later =====
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz3IO1geMRJjjj5-lf2LUEtTeGZ4cVSO0ki614YhAtF1t9D58a4LL-R5VmaUKBuFfkD/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyjqFeZrAQK1rWSALDWCWxskznsZTNx-uHiLIVYO_T7unWmU5q8EX4KqBXaGL1jIOHC/exec";
 const $ = id => document.getElementById(id), KEY = "csds_tickets";
 const target = new Date("2026-11-14T18:00:00+05:00").getTime(), pad = n => String(n).padStart(2, "0");
 (function tick() { const t = Math.max(0, target - Date.now()); const v = { d: Math.floor(t / 864e5), h: Math.floor(t % 864e5 / 36e5), m: Math.floor(t % 36e5 / 6e4), s: Math.floor(t % 6e4 / 1e3) }; for (const k in v) $(k).textContent = pad(v[k]); setTimeout(tick, 1000); })();
