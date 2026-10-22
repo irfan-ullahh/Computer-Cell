@@ -48,7 +48,7 @@ $("f").addEventListener("submit", async e => {
                 method: "POST",
                 mode: "no-cors", 
                 headers: { "Content-Type": "text/plain" },
-                body: JSON.stringify({ ...d, screenshotName: file.name, screenshotType: file.type, screenshotBase64: await toB64(file) })
+                body: JSON.stringify({ ...d, screenshotName: file.name, screenshotType: file.type })
             });
         }
         
