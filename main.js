@@ -41,21 +41,31 @@ $("f").addEventListener("submit", async e => {
     go.disabled = true; go.textContent = "Submitting…";
     const d = Object.fromEntries(new FormData(f).entries()); delete d.shot;
     d.ticketId = makeId(); d.status = "Pending verification"; d.createdAt = new Date().toISOString();
-    try {
+       try {
         if (GOOGLE_SCRIPT_URL) {
-    const response = await fetch(GOOGLE_SCRIPT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ ...d, screenshotName: file.name, screenshotType: file.type, screenshotBase64: await toB64(file) })
-    });
-    const result = await response.json();
-    if (result.result !== "success") {
-        throw new Error("Server error: " + JSON.stringify(result));
-    }
-}
+            // We use mode: "no-cors" so Google Apps Script accepts the data without blocking it
+            await fetch(GOOGLE_SCRIPT_URL, {
+                method: "POST",
+                mode: "no-cors", 
+                headers: { "Content-Type": "text/plain" },
+                body: JSON.stringify({ ...d, screenshotName: file.name, screenshotType: file.type, screenshotBase64: await toB64(file) })
+            });
+        }
+        
+        // Save locally and show success modal
         const all = load(); all.push(d); save(all);
-        $("tid").textContent = d.ticketId; $("modal").classList.add("open"); f.reset(); f.querySelectorAll("[aria-invalid]").forEach(el => { setErr(el, ""); el.removeAttribute("aria-invalid"); }); msg.style.color = "#8fe3b0"; msg.textContent = "Registration submitted successfully. Ticket " + d.ticketId + " is pending verification."; toast("ok", "Registration submitted. Your ticket ID is " + d.ticketId + ".");
-    } catch (err) { msg.textContent = "Submission failed. Check your connection and try again."; toast("err", "Submission failed. Please try again."); }
+        $("tid").textContent = d.ticketId; 
+        $("modal").classList.add("open"); 
+        f.reset(); 
+        f.querySelectorAll("[aria-invalid]").forEach(el => { setErr(el, ""); el.removeAttribute("aria-invalid"); }); 
+        msg.style.color = "#8fe3b0"; 
+        msg.textContent = "Registration submitted successfully. Ticket " + d.ticketId + " is pending verification."; 
+        toast("ok", "Registration submitted. Your ticket ID is " + d.ticketId + ".");
+        
+    } catch (err) { 
+        msg.textContent = "Submission failed. Check your connection and try again."; 
+        toast("err", "Submission failed. Please try again."); 
+    }
     go.disabled = false; go.textContent = "Submit registration";
 });
 $("cl").onclick = () => $("modal").classList.remove("open");
