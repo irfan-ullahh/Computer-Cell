@@ -1,5 +1,5 @@
-// ===== Paste your Google Apps Script web-app URL here later =====
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyjqFeZrAQK1rWSALDWCWxskznsZTNx-uHiLIVYO_T7unWmU5q8EX4KqBXaGL1jIOHC/exec";
+// ===== Paste your NEW Google Apps Script web-app URL here =====
+const GOOGLE_SCRIPT_URL = "PASTE_YOUR_NEW_URL_HERE";
 const $ = id => document.getElementById(id), KEY = "csds_tickets";
 const target = new Date("2026-11-14T18:00:00+05:00").getTime(), pad = n => String(n).padStart(2, "0");
 (function tick() { const t = Math.max(0, target - Date.now()); const v = { d: Math.floor(t / 864e5), h: Math.floor(t % 864e5 / 36e5), m: Math.floor(t % 36e5 / 6e4), s: Math.floor(t % 6e4 / 1e3) }; for (const k in v) $(k).textContent = pad(v[k]); setTimeout(tick, 1000); })();
@@ -10,7 +10,7 @@ document.querySelectorAll(".rv").forEach((el, i) => { el.dataset.i = i % 3; io.o
 document.addEventListener("pointermove", e => { const g = e.target.closest && e.target.closest(".glass"); if (g) { const r = g.getBoundingClientRect(); g.style.setProperty("--mx", e.clientX - r.left + "px"); g.style.setProperty("--my", e.clientY - r.top + "px"); } });
 const tl = $("tilt"); tl.addEventListener("pointermove", e => { const r = tl.getBoundingClientRect(); tl.style.transform = `perspective(800px) rotateY(${((e.clientX - r.left) / r.width - .5) * 14}deg) rotateX(${(.5 - (e.clientY - r.top) / r.height) * 14}deg)`; }); tl.addEventListener("pointerleave", () => tl.style.transform = "");
 
-// storage helpers (per-browser; swap for Google Sheets lookup)
+// storage helpers
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } };
 const save = a => { try { localStorage.setItem(KEY, JSON.stringify(a)); } catch (e) { } };
 const toB64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result.split(",")[1]); r.onerror = no; r.readAsDataURL(f); });
@@ -31,6 +31,7 @@ function validateAll(f) { const bad = [...f.querySelectorAll("input,select")].fi
 $("f").addEventListener("input", e => { if (e.target.hasAttribute("aria-invalid")) check(e.target); });
 $("f").addEventListener("change", e => check(e.target));
 $("f").addEventListener("blur", e => { if (e.target.name) check(e.target); }, true);
+
 $("f").addEventListener("submit", async e => {
     e.preventDefault(); const f = e.target, msg = $("msg"), go = $("go"); msg.style.color = "#f2a5a5";
     if (!validateAll(f)) { msg.textContent = "Please fix the highlighted fields and submit again."; toast("err", "Some fields need your attention."); return; }
@@ -41,14 +42,19 @@ $("f").addEventListener("submit", async e => {
     go.disabled = true; go.textContent = "Submitting…";
     const d = Object.fromEntries(new FormData(f).entries()); delete d.shot;
     d.ticketId = makeId(); d.status = "Pending verification"; d.createdAt = new Date().toISOString();
-       try {
-        if (GOOGLE_SCRIPT_URL) {
-            // We use mode: "no-cors" so Google Apps Script accepts the data without blocking it
+    
+    try {
+        if (GOOGLE_SCRIPT_URL !== "PASTE_YOUR_NEW_URL_HERE") {
+            // Send data as a standard form URL-encoded string (Bypasses CORS/JSON issues)
+            const formData = new URLSearchParams();
+            for (const key in d) { formData.append(key, d[key]); }
+            formData.append("screenshotName", file.name);
+            
             await fetch(GOOGLE_SCRIPT_URL, {
                 method: "POST",
                 mode: "no-cors", 
-                headers: { "Content-Type": "text/plain" },
-                body: JSON.stringify({ ...d, screenshotName: file.name, screenshotType: file.type })
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: formData.toString()
             });
         }
         
@@ -68,6 +74,7 @@ $("f").addEventListener("submit", async e => {
     }
     go.disabled = false; go.textContent = "Submit registration";
 });
+
 $("cl").onclick = () => $("modal").classList.remove("open");
 $("cp").onclick = () => { try { navigator.clipboard.writeText($("tid").textContent); $("cp").textContent = "Copied"; } catch (e) { } };
 
@@ -78,6 +85,7 @@ const DEMO = [
 const esc = s => String(s == null ? "" : s).replace(/[<>&"]/g, "");
 $("demo").hidden = !!GOOGLE_SCRIPT_URL;
 document.querySelectorAll("[data-demo]").forEach(b => b.onclick = () => { $("q").value = b.dataset.demo; $("sf").requestSubmit(); });
+
 $("sf").addEventListener("submit", async e => {
     e.preventDefault(); const q = $("q").value.trim().toUpperCase(), out = $("res"), btn = e.target.querySelector("button"); let t = null;
     if (!/^CSDS-[0-9A-Z]{4,8}$|^\d{5}-\d{7}-\d$/.test(q)) { out.innerHTML = '<div class="glass p-5 text-[#f2a5a5]" role="alert">Enter a ticket ID like CSDS-A3F29C or a CNIC like 12345-1234567-1.</div>'; toast("err", "Invalid ticket ID or CNIC."); return; }
