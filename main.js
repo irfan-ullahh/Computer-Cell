@@ -1,5 +1,5 @@
 // ===== Paste your Google Apps Script web-app URL here later =====
-const GOOGLE_SCRIPT_URL = "";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzVJ-G6PJD7X3vVgWO59ESL0tWfR-x98yFaD84YK15KLy0g8zxAZV38evHaZWrn38iD/exec";
 const $ = id => document.getElementById(id), KEY = "csds_tickets";
 const target = new Date("2026-11-14T18:00:00+05:00").getTime(), pad = n => String(n).padStart(2, "0");
 (function tick() { const t = Math.max(0, target - Date.now()); const v = { d: Math.floor(t / 864e5), h: Math.floor(t % 864e5 / 36e5), m: Math.floor(t % 36e5 / 6e4), s: Math.floor(t % 6e4 / 1e3) }; for (const k in v) $(k).textContent = pad(v[k]); setTimeout(tick, 1000); })();
@@ -42,7 +42,17 @@ $("f").addEventListener("submit", async e => {
     const d = Object.fromEntries(new FormData(f).entries()); delete d.shot;
     d.ticketId = makeId(); d.status = "Pending verification"; d.createdAt = new Date().toISOString();
     try {
-        if (GOOGLE_SCRIPT_URL) await fetch(GOOGLE_SCRIPT_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ ...d, screenshotName: file.name, screenshotType: file.type, screenshotBase64: await toB64(file) }) });
+        if (GOOGLE_SCRIPT_URL) {
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ ...d, screenshotName: file.name, screenshotType: file.type, screenshotBase64: await toB64(file) })
+    });
+    const result = await response.json();
+    if (result.result !== "success") {
+        throw new Error("Server error: " + JSON.stringify(result));
+    }
+}
         const all = load(); all.push(d); save(all);
         $("tid").textContent = d.ticketId; $("modal").classList.add("open"); f.reset(); f.querySelectorAll("[aria-invalid]").forEach(el => { setErr(el, ""); el.removeAttribute("aria-invalid"); }); msg.style.color = "#8fe3b0"; msg.textContent = "Registration submitted successfully. Ticket " + d.ticketId + " is pending verification."; toast("ok", "Registration submitted. Your ticket ID is " + d.ticketId + ".");
     } catch (err) { msg.textContent = "Submission failed. Check your connection and try again."; toast("err", "Submission failed. Please try again."); }
