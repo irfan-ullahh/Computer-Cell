@@ -1,4 +1,4 @@
-// ===== Paste your NEW Google Apps Script web-app URL here =====
+// ===== Paste your NEW Google Apps Script web-app URL here ===
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxFdwpvkt0I1G7QwkAGf7GkiPrCRmuCnAcIs_gKauNZry30XrhJXRyKLG00whz1ZS46/exec";
 const $ = id => document.getElementById(id), KEY = "csds_tickets";
 const target = new Date("2026-11-14T18:00:00+05:00").getTime(), pad = n => String(n).padStart(2, "0");
