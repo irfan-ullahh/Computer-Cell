@@ -1,3 +1,19 @@
+const compressImage = (file, maxW = 1200, quality = 0.7) => new Promise((ok, no) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+        const s = Math.min(1, maxW / img.width);
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * s);
+        c.height = Math.round(img.height * s);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        ok(c.toDataURL("image/jpeg", quality).split(",")[1]); // base64 only
+    };
+    img.onerror = no;
+    img.src = url;
+});
+
+
 // ===== Paste your NEW Google Apps Script web-app URL here ===
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxFdwpvkt0I1G7QwkAGf7GkiPrCRmuCnAcIs_gKauNZry30XrhJXRyKLG00whz1ZS46/exec";
 const $ = id => document.getElementById(id), KEY = "csds_tickets";
