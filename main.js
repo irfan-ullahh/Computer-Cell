@@ -1,21 +1,5 @@
-const compressImage = (file, maxW = 1200, quality = 0.7) => new Promise((ok, no) => {
-    const img = new Image(), url = URL.createObjectURL(file);
-    img.onload = () => {
-        const s = Math.min(1, maxW / img.width);
-        const c = document.createElement("canvas");
-        c.width = Math.round(img.width * s);
-        c.height = Math.round(img.height * s);
-        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
-        ok(c.toDataURL("image/jpeg", quality).split(",")[1]); // base64 only
-    };
-    img.onerror = no;
-    img.src = url;
-});
-
-
-// ===== Paste your NEW Google Apps Script web-app URL here ===
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxFdwpvkt0I1G7QwkAGf7GkiPrCRmuCnAcIs_gKauNZry30XrhJXRyKLG00whz1ZS46/exec";
+// ===== Your Google Apps Script web-app URL (the /exec one) ===
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzlWoFs0TjnMashdZpdROV6FyJDcxDnNbtzsZ0aeyVIOukdwI-xTaepYaXvsPtPli7Q/exec";
 const $ = id => document.getElementById(id), KEY = "csds_tickets";
 const target = new Date("2026-11-14T18:00:00+05:00").getTime(), pad = n => String(n).padStart(2, "0");
 (function tick() { const t = Math.max(0, target - Date.now()); const v = { d: Math.floor(t / 864e5), h: Math.floor(t % 864e5 / 36e5), m: Math.floor(t % 36e5 / 6e4), s: Math.floor(t % 6e4 / 1e3) }; for (const k in v) $(k).textContent = pad(v[k]); setTimeout(tick, 1000); })();
@@ -26,11 +10,28 @@ document.querySelectorAll(".rv").forEach((el, i) => { el.dataset.i = i % 3; io.o
 document.addEventListener("pointermove", e => { const g = e.target.closest && e.target.closest(".glass"); if (g) { const r = g.getBoundingClientRect(); g.style.setProperty("--mx", e.clientX - r.left + "px"); g.style.setProperty("--my", e.clientY - r.top + "px"); } });
 const tl = $("tilt"); tl.addEventListener("pointermove", e => { const r = tl.getBoundingClientRect(); tl.style.transform = `perspective(800px) rotateY(${((e.clientX - r.left) / r.width - .5) * 14}deg) rotateX(${(.5 - (e.clientY - r.top) / r.height) * 14}deg)`; }); tl.addEventListener("pointerleave", () => tl.style.transform = "");
 
-// storage helpers
+// storage helpers (local copy is only a fallback for "Find your ticket")
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } };
 const save = a => { try { localStorage.setItem(KEY, JSON.stringify(a)); } catch (e) { } };
-const toB64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result.split(",")[1]); r.onerror = no; r.readAsDataURL(f); });
 const makeId = () => "CSDS-" + Array.from(crypto.getRandomValues(new Uint8Array(3)), b => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+
+// shrink the screenshot to ~1200px JPEG and return base64 only
+const compressImage = (file, maxW = 1200, quality = 0.7) => new Promise((ok, no) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+        const s = Math.min(1, maxW / img.width);
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * s);
+        c.height = Math.round(img.height * s);
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); // white background for transparent PNGs
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        ok(c.toDataURL("image/jpeg", quality).split(",")[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); no(new Error("Could not read image")); };
+    img.src = url;
+});
 
 function toast(t, m) { const b = document.createElement("div"); b.className = "toast " + t; b.setAttribute("role", "alert"); b.innerHTML = "<b></b><span></span>"; b.firstChild.textContent = t === "ok" ? "Success" : "Error"; b.lastChild.textContent = m; $("toasts").appendChild(b); setTimeout(() => b.remove(), 5000); }
 const RULES = {
@@ -51,44 +52,47 @@ $("f").addEventListener("blur", e => { if (e.target.name) check(e.target); }, tr
 $("f").addEventListener("submit", async e => {
     e.preventDefault(); const f = e.target, msg = $("msg"), go = $("go"); msg.style.color = "#f2a5a5";
     if (!validateAll(f)) { msg.textContent = "Please fix the highlighted fields and submit again."; toast("err", "Some fields need your attention."); return; }
-    const cn = f.cnic.value.trim(), tx = f.txn.value.trim().toUpperCase();
-    if (load().some(x => x.cnic === cn)) { setErr(f.cnic, "This CNIC is already registered. Use Find your ticket to check its status."); toast("err", "Duplicate registration found."); f.cnic.focus(); return; }
-    if (load().some(x => String(x.txn).toUpperCase() === tx)) { setErr(f.txn, "This transaction ID was already used."); toast("err", "Duplicate transaction ID."); f.txn.focus(); return; }
+
     const file = f.shot.files[0];
     go.disabled = true; go.textContent = "Submitting…";
     const d = Object.fromEntries(new FormData(f).entries()); delete d.shot;
+    for (const k in d) d[k] = String(d[k]).trim();
     d.ticketId = makeId(); d.status = "Pending verification"; d.createdAt = new Date().toISOString();
-    
+
     try {
-        if (GOOGLE_SCRIPT_URL !== "PASTE_YOUR_NEW_URL_HERE") {
-            // Send data as a standard form URL-encoded string (Bypasses CORS/JSON issues)
-            const formData = new URLSearchParams();
-            for (const key in d) { formData.append(key, d[key]); }
-            formData.append("screenshotName", file.name);
-            
-            await fetch(GOOGLE_SCRIPT_URL, {
-                method: "POST",
-                mode: "no-cors", 
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: formData.toString()
-            });
+        const formData = new URLSearchParams();
+        for (const key in d) formData.append(key, d[key]);
+        formData.append("screenshot", await compressImage(file));
+
+        // Content-Type is set automatically to application/x-www-form-urlencoded (no CORS preflight)
+        const res = await fetch(GOOGLE_SCRIPT_URL, { method: "POST", body: formData });
+        const out = await res.json();
+
+        // server-side duplicate check (works across all devices)
+        if (out.result === "duplicate") {
+            if (out.field === "cnic") { setErr(f.cnic, "This CNIC is already registered. Use Find your ticket to check its status."); f.cnic.focus(); }
+            else { setErr(f.txn, "This transaction ID was already used."); f.txn.focus(); }
+            msg.textContent = "Duplicate registration found.";
+            toast("err", "Duplicate registration found.");
+            return;
         }
-        
-        // Save locally and show success modal
+        if (out.result !== "success") throw new Error(out.error || "Server error");
+
+        // success: keep a local copy, show the ticket
         const all = load(); all.push(d); save(all);
-        $("tid").textContent = d.ticketId; 
-        $("modal").classList.add("open"); 
-        f.reset(); 
-        f.querySelectorAll("[aria-invalid]").forEach(el => { setErr(el, ""); el.removeAttribute("aria-invalid"); }); 
-        msg.style.color = "#8fe3b0"; 
-        msg.textContent = "Registration submitted successfully. Ticket " + d.ticketId + " is pending verification."; 
+        $("tid").textContent = d.ticketId;
+        $("modal").classList.add("open");
+        f.reset();
+        f.querySelectorAll("[aria-invalid]").forEach(el => { setErr(el, ""); el.removeAttribute("aria-invalid"); });
+        msg.style.color = "#8fe3b0";
+        msg.textContent = "Registration submitted successfully. Ticket " + d.ticketId + " is pending verification.";
         toast("ok", "Registration submitted. Your ticket ID is " + d.ticketId + ".");
-        
-    } catch (err) { 
-        msg.textContent = "Submission failed. Check your connection and try again."; 
-        toast("err", "Submission failed. Please try again."); 
+    } catch (err) {
+        msg.textContent = "Submission failed. Check your connection and try again.";
+        toast("err", "Submission failed. Please try again.");
+    } finally {
+        go.disabled = false; go.textContent = "Submit registration";
     }
-    go.disabled = false; go.textContent = "Submit registration";
 });
 
 $("cl").onclick = () => $("modal").classList.remove("open");
@@ -109,6 +113,6 @@ $("sf").addEventListener("submit", async e => {
     if (GOOGLE_SCRIPT_URL) { try { t = await (await fetch(GOOGLE_SCRIPT_URL + "?action=lookup&q=" + encodeURIComponent(q))).json(); } catch (err) { toast("err", "Could not reach the server. Showing saved results only."); } } else await new Promise(r => setTimeout(r, 700));
     if (!t || !t.ticketId) t = (GOOGLE_SCRIPT_URL ? load() : load().concat(DEMO)).find(x => x.ticketId === q || x.cnic === q) || null; btn.disabled = false; btn.textContent = "Search";
     if (!t) { out.innerHTML = '<div class="glass p-6" role="alert">No ticket found. Check the ID or CNIC, or message the payment desk on WhatsApp.</div>'; toast("err", "No ticket found for that ID or CNIC."); return; }
-    toast("ok", "Ticket found."); const ok = /confirm/i.test(t.status), name = String(t.name).replace(/[<>&"]/g, "");
-    out.innerHTML = `<div class="glass p-6 rv in"><div class="flex justify-between items-start gap-4"><div><p class="text-sm text-[color:var(--mute)]">Ticket</p><p class="disp text-2xl font-extrabold gtext">${t.ticketId}</p></div><span class="rounded-full px-3 py-1 text-sm font-semibold ${ok ? "bg-emerald-400/20 text-emerald-300" : "bg-amber-400/20 text-amber-200"}">${String(t.status).replace(/[<>&"]/g, "")}</span></div><p class="mt-4"><b>${name}</b> · Section ${String(t.section).replace(/[<>&"]/g, "")}, Semester ${String(t.semester).replace(/[<>&"]/g, "")}</p><p class="text-sm text-[color:var(--mute)] mt-1">Nov 14, 2026 · Grand Marquee, University Town</p><div class="grid sm:grid-cols-3 gap-3 mt-5 text-sm"><div><p class="text-[color:var(--mute)]">Transaction</p><b>${esc(t.txn)}</b></div><div><p class="text-[color:var(--mute)]">Phone</p><b>${esc(t.phone)}</b></div><div><p class="text-[color:var(--mute)]">Submitted</p><b>${t.createdAt ? new Date(t.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "-"}</b></div></div><p class="mt-4 text-sm ${ok ? "text-emerald-300" : "text-amber-200"}">${ok ? "Your seat is confirmed. Show this ticket ID at the entrance." : "Your payment is still being checked. Search again later for an update."}</p></div>`;
+    toast("ok", "Ticket found."); const ok = /confirm/i.test(t.status), name = esc(t.name);
+    out.innerHTML = `<div class="glass p-6 rv in"><div class="flex justify-between items-start gap-4"><div><p class="text-sm text-[color:var(--mute)]">Ticket</p><p class="disp text-2xl font-extrabold gtext">${esc(t.ticketId)}</p></div><span class="rounded-full px-3 py-1 text-sm font-semibold ${ok ? "bg-emerald-400/20 text-emerald-300" : "bg-amber-400/20 text-amber-200"}">${esc(t.status)}</span></div><p class="mt-4"><b>${name}</b> · Section ${esc(t.section)}, Semester ${esc(t.semester)}</p><p class="text-sm text-[color:var(--mute)] mt-1">Nov 14, 2026 · Grand Marquee, University Town</p><div class="grid sm:grid-cols-3 gap-3 mt-5 text-sm"><div><p class="text-[color:var(--mute)]">Transaction</p><b>${esc(t.txn)}</b></div><div><p class="text-[color:var(--mute)]">Phone</p><b>${esc(t.phone)}</b></div><div><p class="text-[color:var(--mute)]">Submitted</p><b>${t.createdAt ? new Date(t.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "-"}</b></div></div><p class="mt-4 text-sm ${ok ? "text-emerald-300" : "text-amber-200"}">${ok ? "Your seat is confirmed. Show this ticket ID at the entrance." : "Your payment is still being checked. Search again later for an update."}</p></div>`;
 });
